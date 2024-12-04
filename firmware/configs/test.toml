@@ -1,1 +1,2 @@
+mqtt_client_id = "air-filter-test"
 board_temperature_sensor_address = "2473778391013417256"

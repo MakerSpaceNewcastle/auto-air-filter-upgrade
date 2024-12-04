@@ -24,15 +24,13 @@ use static_cell::StaticCell;
 
 const WIFI_SSID: &str = "Maker Space";
 
-pub(crate) const MQTT_BROKER_IP: IpAddress = IpAddress::Ipv4(Ipv4Address::new(192, 168, 8, 183));
+const MQTT_BROKER_IP: IpAddress = IpAddress::Ipv4(Ipv4Address::new(192, 168, 8, 183));
 const MQTT_BROKER_PORT: u16 = 1883;
 
-const MQTT_CLIENT_ID: &str = "hoshiguma-telemetry-module";
-const MQTT_USERNAME: &str = "hoshiguma";
+const MQTT_USERNAME: &str = "air-filter";
 
 const ONLINE_MQTT_TOPIC: &str = "hoshiguma/telemetry-module/online";
 const VERSION_MQTT_TOPIC: &str = "hoshiguma/telemetry-module/version";
-const TELEMETRY_MQTT_TOPIC: &str = "hoshiguma/events";
 
 bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
@@ -101,15 +99,11 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
     }
 
     // Get configuration via DHCP
-    {
-        info!("Waiting for DHCP");
-        while !stack.is_config_up() {
-            Timer::after_millis(100).await;
-        }
-        info!("DHCP is now up");
-
-        let config = stack.config_v4().unwrap();
+    info!("Waiting for DHCP");
+    while !stack.is_config_up() {
+        Timer::after_millis(100).await;
     }
+    info!("DHCP is now up");
 
     loop {
         let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
@@ -127,7 +121,7 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
 
         let mut client = {
             let mut config = ClientConfig::new(MqttVersion::MQTTv5, CountingRng(20000));
-            config.add_client_id(MQTT_CLIENT_ID);
+            config.add_client_id(env!("MQTT_CLIENT_ID"));
             config.add_username(MQTT_USERNAME);
             config.add_password(env!("MQTT_PASSWORD"));
             config.max_packet_size = MQTT_BUFFER_SIZE as u32;
