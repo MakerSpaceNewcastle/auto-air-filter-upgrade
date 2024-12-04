@@ -7,6 +7,7 @@ mod presence_sensors;
 mod run_logic;
 mod temperature_sensors;
 mod ui_buttons;
+mod wifi;
 
 use defmt::{info, unwrap};
 use defmt_rtt as _;
