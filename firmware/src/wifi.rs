@@ -29,8 +29,9 @@ const MQTT_BROKER_PORT: u16 = 1883;
 
 const MQTT_USERNAME: &str = "air-filter";
 
-const ONLINE_MQTT_TOPIC: &str = "hoshiguma/telemetry-module/online";
-const VERSION_MQTT_TOPIC: &str = "hoshiguma/telemetry-module/version";
+const MQTT_TOPIC_PREFIX: &str = env!("MQTT_TOPIC_PREFIX");
+const ONLINE_MQTT_TOPIC: &str = MQTT_TOPIC_PREFIX + "online";
+const VERSION_MQTT_TOPIC: &str = MQTT_TOPIC_PREFIX + "version";
 
 bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
@@ -78,7 +79,6 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
         RESOURCES.init(StackResources::<4>::new()),
         seed,
     ));
-
     unwrap!(spawner.spawn(net_task(stack)));
 
     let mut rx_buffer = [0; 4096];
@@ -147,18 +147,15 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
             }
         }
 
-        match client
+        if let Err(e) = client
             .send_message(ONLINE_MQTT_TOPIC, b"true", QualityOfService::QoS1, true)
             .await
         {
-            Ok(()) => {}
-            Err(e) => {
-                warn!("MQTT error: {:?}", e);
-                continue;
-            }
+            warn!("MQTT error: {:?}", e);
+            continue;
         }
 
-        match client
+        if let Err(e) = client
             .send_message(
                 VERSION_MQTT_TOPIC,
                 git_version::git_version!().as_bytes(),
@@ -167,11 +164,8 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
             )
             .await
         {
-            Ok(()) => {}
-            Err(e) => {
-                warn!("MQTT error: {:?}", e);
-                continue;
-            }
+            warn!("MQTT error: {:?}", e);
+            continue;
         }
 
         loop {

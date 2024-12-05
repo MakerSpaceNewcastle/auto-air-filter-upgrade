@@ -42,6 +42,7 @@ fn main() {
 #[derive(Deserialize)]
 struct Config {
     mqtt_client_id: String,
+    mqtt_topic_prefix: String,
     board_temperature_sensor_address: String,
 }
 
@@ -57,9 +58,10 @@ impl Config {
     }
 
     fn set_env_vars(&self) {
+        println!("cargo::rustc-env=MQTT_CLIENT_ID={}", self.mqtt_client_id);
         println!(
-            "cargo::rustc-env=MQTT_CLIENT_ID={}",
-            self.mqtt_client_id
+            "cargo::rustc-env=MQTT_TOPIC_PREFIX={}",
+            self.mqtt_topic_prefix
         );
         println!(
             "cargo::rustc-env=BOARD_TEMP_SENSOR_ADDRESS={}",

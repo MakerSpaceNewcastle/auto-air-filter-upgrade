@@ -1,2 +1,3 @@
 mqtt_client_id = "air-filter-south-basement-workshop"
+mqtt_topic_prefix = "air-filters/south-basement/"
 board_temperature_sensor_address = "11691230640084377896"
