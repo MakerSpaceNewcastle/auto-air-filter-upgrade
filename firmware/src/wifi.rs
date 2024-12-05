@@ -4,7 +4,7 @@ use cyw43_pio::PioSpi;
 use defmt::{debug, info, unwrap, warn};
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
-use embassy_net::{tcp::TcpSocket, Config, IpAddress, Ipv4Address, Stack, StackResources};
+use embassy_net::{tcp::TcpSocket, Config, IpAddress, Ipv4Address, StackResources};
 use embassy_rp::{
     bind_interrupts,
     clocks::RoscRng,
@@ -69,15 +69,14 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
     let mut rng = RoscRng;
     let seed = rng.next_u64();
 
-    static STACK: StaticCell<Stack<cyw43::NetDriver<'static>>> = StaticCell::new();
     static RESOURCES: StaticCell<StackResources<4>> = StaticCell::new();
-    let stack = &*STACK.init(Stack::new(
+    let (stack, runner) = embassy_net::new(
         net_device,
         Config::dhcpv4(Default::default()),
-        RESOURCES.init(StackResources::<4>::new()),
+        RESOURCES.init(StackResources::new()),
         seed,
-    ));
-    unwrap!(spawner.spawn(net_task(stack)));
+    );
+    unwrap!(spawner.spawn(net_task(runner)));
 
     let mut temperature_sub = TEMPERATURE_READING.subscriber().unwrap();
 
@@ -214,6 +213,6 @@ async fn cyw43_task(
 }
 
 #[embassy_executor::task]
-async fn net_task(stack: &'static Stack<cyw43::NetDriver<'static>>) -> ! {
-    stack.run().await
+async fn net_task(mut runner: embassy_net::Runner<'static, cyw43::NetDriver<'static>>) -> ! {
+    runner.run().await
 }
