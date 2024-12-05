@@ -1,7 +1,9 @@
+use crate::temperature_sensors::TEMPERATURE_READING;
 use cyw43::{PowerManagementMode, State};
 use cyw43_pio::PioSpi;
-use defmt::{info, unwrap, warn};
+use defmt::{debug, info, unwrap, warn};
 use embassy_executor::Spawner;
+use embassy_futures::select::{select, Either};
 use embassy_net::{tcp::TcpSocket, Config, IpAddress, Ipv4Address, Stack, StackResources};
 use embassy_rp::{
     bind_interrupts,
@@ -28,9 +30,6 @@ const MQTT_BROKER_IP: IpAddress = IpAddress::Ipv4(Ipv4Address::new(192, 168, 8, 
 const MQTT_BROKER_PORT: u16 = 1883;
 
 const MQTT_USERNAME: &str = "airfilter";
-
-const ONLINE_MQTT_TOPIC: &str = env!("ONLINE_MQTT_TOPIC");
-const VERSION_MQTT_TOPIC: &str = env!("VERSION_MQTT_TOPIC");
 
 bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
@@ -80,6 +79,8 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
     ));
     unwrap!(spawner.spawn(net_task(stack)));
 
+    let temperature_sub = TEMPERATURE_READING.subscriber().unwrap();
+
     let mut rx_buffer = [0; 4096];
     let mut tx_buffer = [0; 4096];
 
@@ -124,7 +125,7 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
             config.add_username(MQTT_USERNAME);
             config.add_password(env!("MQTT_PASSWORD"));
             config.max_packet_size = MQTT_BUFFER_SIZE as u32;
-            config.add_will(ONLINE_MQTT_TOPIC, b"false", true);
+            config.add_will(env!("ONLINE_MQTT_TOPIC"), b"false", true);
 
             MqttClient::<_, 5, _>::new(
                 socket,
@@ -146,9 +147,13 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
             }
         }
 
-        info!("topic: {}", ONLINE_MQTT_TOPIC);
         if let Err(e) = client
-            .send_message(ONLINE_MQTT_TOPIC, b"true", QualityOfService::QoS1, true)
+            .send_message(
+                env!("ONLINE_MQTT_TOPIC"),
+                b"true",
+                QualityOfService::QoS1,
+                true,
+            )
             .await
         {
             warn!("Publish: MQTT error: {:?}", e);
@@ -157,7 +162,7 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
 
         if let Err(e) = client
             .send_message(
-                VERSION_MQTT_TOPIC,
+                env!("VERSION_MQTT_TOPIC"),
                 git_version::git_version!().as_bytes(),
                 QualityOfService::QoS1,
                 true,
@@ -171,11 +176,31 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
         let mut ping_tick = Ticker::every(Duration::from_secs(5));
 
         loop {
-            // TODO
-            ping_tick.next().await;
-            if let Err(e) = client.send_ping().await {
-                warn!("Ping: MQTT error: {:?}", e);
-                continue;
+            match select(ping_tick.next(), temperature_sub.next_message()).await {
+                Either::First(_) => match client.send_ping().await {
+                    Ok(()) => {
+                        debug!("MQTT ping OK");
+                    }
+                    Err(e) => {
+                        warn!("Ping: MQTT error: {:?}", e);
+                        continue;
+                    }
+                },
+                Either::Second(temperatures) => {
+                    // TODO
+                    if let Err(e) = client
+                        .send_message(
+                            env!("ONBOARD_TEMPERATURE_SENSOR_TOPIC"),
+                            b"todo",
+                            QualityOfService::QoS1,
+                            false,
+                        )
+                        .await
+                    {
+                        warn!("Publish: MQTT error: {:?}", e);
+                        continue;
+                    }
+                }
             }
         }
     }

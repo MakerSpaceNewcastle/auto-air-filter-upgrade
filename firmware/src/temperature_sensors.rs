@@ -1,8 +1,24 @@
-use defmt::{info, warn};
+use defmt::{info, warn, Format};
 use ds18b20::{Ds18b20, Resolution};
 use embassy_rp::gpio::{Level, OutputOpenDrain};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, pubsub::PubSubChannel};
 use embassy_time::{Delay, Duration, Ticker, Timer};
 use one_wire_bus::{Address, OneWire};
+
+pub(crate) type TemperatureReading = Result<f32, ()>;
+
+#[derive(Clone, Format)]
+pub(crate) struct Temperatures {
+    onboard: TemperatureReading,
+}
+
+pub(crate) static TEMPERATURE_READING: PubSubChannel<
+    CriticalSectionRawMutex,
+    TemperatureReading,
+    8,
+    1,
+    1,
+> = PubSubChannel::new();
 
 #[embassy_executor::task]
 pub(super) async fn task(r: crate::OnewireResources) {
@@ -24,6 +40,7 @@ pub(super) async fn task(r: crate::OnewireResources) {
         Ds18b20::new::<()>(Address(env!("BOARD_TEMP_SENSOR_ADDRESS").parse().unwrap())).unwrap();
 
     let mut ticker = Ticker::every(Duration::from_secs(5));
+    let publisher = TEMPERATURE_READING.publisher().unwrap();
 
     loop {
         ticker.next().await;
@@ -32,10 +49,13 @@ pub(super) async fn task(r: crate::OnewireResources) {
 
         Timer::after_millis(Resolution::Bits12.max_measurement_time_millis() as u64).await;
 
-        // TODO: do something sensible with the temperature readings
-        match onboard_temp_sensor.read_data(&mut bus, &mut Delay) {
-            Ok(reading) => info!("Board temperature: {}C", reading.temperature),
-            Err(_) => warn!("Failed to read board temperature"),
-        }
+        let readings = Temperatures {
+            onboard: onboard_temp_sensor
+                .read_data(&mut bus, &mut Delay)
+                .map_err(|_| ()),
+        };
+
+        debug!("Temperature readings: {}", readings);
+        publisher.publish(readings);
     }
 }
