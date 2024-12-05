@@ -53,6 +53,7 @@ impl Config {
     }
 
     fn load(filename: &str) -> Self {
+        println!("cargo:rerun-if-changed={filename}");
         let config = std::fs::read_to_string(filename).unwrap();
         toml::from_str(&config).unwrap()
     }

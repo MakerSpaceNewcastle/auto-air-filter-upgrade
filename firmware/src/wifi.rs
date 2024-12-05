@@ -10,7 +10,7 @@ use embassy_rp::{
     peripherals::{DMA_CH0, PIO0},
     pio::{InterruptHandler, Pio},
 };
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Ticker, Timer};
 use rand::RngCore;
 use rust_mqtt::{
     client::{
@@ -27,7 +27,7 @@ const WIFI_SSID: &str = "Maker Space";
 const MQTT_BROKER_IP: IpAddress = IpAddress::Ipv4(Ipv4Address::new(192, 168, 8, 183));
 const MQTT_BROKER_PORT: u16 = 1883;
 
-const MQTT_USERNAME: &str = "air-filter";
+const MQTT_USERNAME: &str = "airfilter";
 
 const ONLINE_MQTT_TOPIC: &str = env!("ONLINE_MQTT_TOPIC");
 const VERSION_MQTT_TOPIC: &str = env!("VERSION_MQTT_TOPIC");
@@ -141,16 +141,17 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
                 info!("Connected to MQTT broker");
             }
             Err(e) => {
-                warn!("MQTT error: {:?}", e);
+                warn!("Connect: MQTT error: {:?}", e);
                 continue;
             }
         }
 
+        info!("topic: {}", ONLINE_MQTT_TOPIC);
         if let Err(e) = client
             .send_message(ONLINE_MQTT_TOPIC, b"true", QualityOfService::QoS1, true)
             .await
         {
-            warn!("MQTT error: {:?}", e);
+            warn!("Publish: MQTT error: {:?}", e);
             continue;
         }
 
@@ -163,13 +164,19 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
             )
             .await
         {
-            warn!("MQTT error: {:?}", e);
+            warn!("Publish: MQTT error: {:?}", e);
             continue;
         }
 
+        let mut ping_tick = Ticker::every(Duration::from_secs(5));
+
         loop {
             // TODO
-            embassy_time::Timer::after_secs(10).await;
+            ping_tick.next().await;
+            if let Err(e) = client.send_ping().await {
+                warn!("Ping: MQTT error: {:?}", e);
+                continue;
+            }
         }
     }
 }

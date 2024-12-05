@@ -1,0 +1,3 @@
+mqtt_client_id = "air-filter-north-basement-workshop"
+mqtt_topic_prefix = "air-filter/north-basement/"
+board_temperature_sensor_address = "8328423804554731816"
