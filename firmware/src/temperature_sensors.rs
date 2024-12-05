@@ -1,4 +1,4 @@
-use defmt::{info, warn, Format};
+use defmt::{debug, info, Format};
 use ds18b20::{Ds18b20, Resolution};
 use embassy_rp::gpio::{Level, OutputOpenDrain};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, pubsub::PubSubChannel};
@@ -14,7 +14,7 @@ pub(crate) struct Temperatures {
 
 pub(crate) static TEMPERATURE_READING: PubSubChannel<
     CriticalSectionRawMutex,
-    TemperatureReading,
+    Temperatures,
     8,
     1,
     1,
@@ -52,10 +52,11 @@ pub(super) async fn task(r: crate::OnewireResources) {
         let readings = Temperatures {
             onboard: onboard_temp_sensor
                 .read_data(&mut bus, &mut Delay)
+                .map(|v| v.temperature)
                 .map_err(|_| ()),
         };
 
         debug!("Temperature readings: {}", readings);
-        publisher.publish(readings);
+        publisher.publish(readings).await;
     }
 }

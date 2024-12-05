@@ -79,7 +79,7 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
     ));
     unwrap!(spawner.spawn(net_task(stack)));
 
-    let temperature_sub = TEMPERATURE_READING.subscriber().unwrap();
+    let mut temperature_sub = TEMPERATURE_READING.subscriber().unwrap();
 
     let mut rx_buffer = [0; 4096];
     let mut tx_buffer = [0; 4096];
