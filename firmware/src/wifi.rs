@@ -29,9 +29,8 @@ const MQTT_BROKER_PORT: u16 = 1883;
 
 const MQTT_USERNAME: &str = "air-filter";
 
-const MQTT_TOPIC_PREFIX: &str = env!("MQTT_TOPIC_PREFIX");
-const ONLINE_MQTT_TOPIC: &str = MQTT_TOPIC_PREFIX + "online";
-const VERSION_MQTT_TOPIC: &str = MQTT_TOPIC_PREFIX + "version";
+const ONLINE_MQTT_TOPIC: &str = env!("ONLINE_MQTT_TOPIC");
+const VERSION_MQTT_TOPIC: &str = env!("VERSION_MQTT_TOPIC");
 
 bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;

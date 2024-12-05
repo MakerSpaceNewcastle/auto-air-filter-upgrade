@@ -1368,8 +1368,7 @@ dependencies = [
 [[package]]
 name = "rust-mqtt"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f71160765f368fd9a84e0955e2ddb6d64ac9018fee1c5323354d6d08c816b40"
+source = "git+https://github.com/DanNixon/rust-mqtt#9e6d7f30053776c3ebe6c0d7861376e2ab1641f3"
 dependencies = [
  "defmt",
  "embedded-io",

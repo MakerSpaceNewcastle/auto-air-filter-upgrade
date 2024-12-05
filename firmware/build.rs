@@ -60,7 +60,11 @@ impl Config {
     fn set_env_vars(&self) {
         println!("cargo::rustc-env=MQTT_CLIENT_ID={}", self.mqtt_client_id);
         println!(
-            "cargo::rustc-env=MQTT_TOPIC_PREFIX={}",
+            "cargo::rustc-env=ONLINE_MQTT_TOPIC={}online",
+            self.mqtt_topic_prefix
+        );
+        println!(
+            "cargo::rustc-env=VERSION_MQTT_TOPIC={}version",
             self.mqtt_topic_prefix
         );
         println!(
