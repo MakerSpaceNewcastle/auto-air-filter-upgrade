@@ -250,17 +250,20 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
                 WaitResult::Lagged(msg_count) => {
                     warn!("Fan subscriber lagged, lost {} messages", msg_count);
                 }
-                WaitResult::Message(fan) => match serde_json_core::to_vec::<_, 16>(&fan) {
-                    Ok(data) => {
-                        client
-                            .send_message(env!("FAN_TOPIC"), &data, QualityOfService::QoS1, false)
-                            .await
-                            .map_err(|e| {
-                                warn!("Publish: MQTT error: {:?}", e);
-                            })?;
-                    }
-                    Err(e) => warn!("Failed to serialize message: {}", e),
-                },
+                WaitResult::Message(fan) => {
+                    let fan: &str = fan.into();
+                    client
+                        .send_message(
+                            env!("FAN_TOPIC"),
+                            fan.as_bytes(),
+                            QualityOfService::QoS1,
+                            false,
+                        )
+                        .await
+                        .map_err(|e| {
+                            warn!("Publish: MQTT error: {:?}", e);
+                        })?;
+                }
             },
             Either4::Fourth(msg) => match msg {
                 Ok(None) => Timer::after_millis(10).await,
