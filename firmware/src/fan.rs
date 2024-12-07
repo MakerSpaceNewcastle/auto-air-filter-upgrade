@@ -2,10 +2,11 @@ use defmt::{debug, Format};
 use embassy_rp::gpio::{Level, Output};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Timer;
+use serde::{Deserialize, Serialize};
 
 pub(crate) static FAN_SPEED: Signal<CriticalSectionRawMutex, Option<FanSpeed>> = Signal::new();
 
-#[derive(Clone, Format, Eq, PartialEq)]
+#[derive(Clone, Format, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) enum FanSpeed {
     Low,
     Medium,

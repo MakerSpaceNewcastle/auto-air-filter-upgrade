@@ -1,10 +1,9 @@
 use crate::temperature_sensors::TEMPERATURE_READING;
-use core::fmt::Write;
 use cyw43::{PowerManagementMode, State};
 use cyw43_pio::PioSpi;
 use defmt::{debug, info, unwrap, warn};
 use embassy_executor::Spawner;
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{select3, Either3};
 use embassy_net::{tcp::TcpSocket, Config, IpAddress, Ipv4Address, Stack, StackResources};
 use embassy_rp::{
     bind_interrupts,
@@ -169,6 +168,13 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
         }
     }
 
+    client.subscribe_to_topic("air-filter/test/fan/set").await.map_err(|e| {
+        warn!("Subscribe: MQTT error: {:?}", e)
+    })?;
+    client.subscribe_to_topic("air-filter/test/fuck").await.map_err(|e| {
+        warn!("Subscribe: MQTT error: {:?}", e)
+    })?;
+
     client
         .send_message(
             env!("ONLINE_MQTT_TOPIC"),
@@ -197,8 +203,14 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
     let mut temperature_sub = TEMPERATURE_READING.subscriber().unwrap();
 
     loop {
-        match select(ping_tick.next(), temperature_sub.next_message()).await {
-            Either::First(_) => match client.send_ping().await {
+        match select3(
+            ping_tick.next(),
+            client.receive_message_if_ready(),
+            temperature_sub.next_message(),
+        )
+        .await
+        {
+            Either3::First(_) => match client.send_ping().await {
                 Ok(()) => {
                     debug!("MQTT ping OK");
                 }
@@ -207,25 +219,30 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
                     return Err(());
                 }
             },
-            Either::Second(temperatures) => match temperatures {
+            Either3::Second(msg) => {
+                // TODO
+                info!("todo {}", msg);
+            }
+            Either3::Third(temperatures) => match temperatures {
                 WaitResult::Lagged(msg_count) => {
                     warn!("Temperature subscriber lagged, lost {} messages", msg_count);
                 }
                 WaitResult::Message(temperatures) => {
-                    if let Ok(t) = temperatures.onboard {
-                        let mut s = heapless::String::<16>::new();
-                        s.write_fmt(format_args!("{}", t)).unwrap();
-                        client
-                            .send_message(
-                                env!("ONBOARD_TEMPERATURE_SENSOR_TOPIC"),
-                                s.as_bytes(),
-                                QualityOfService::QoS1,
-                                false,
-                            )
-                            .await
-                            .map_err(|e| {
-                                warn!("Publish: MQTT error: {:?}", e);
-                            })?;
+                    match serde_json_core::to_vec::<_, 16>(&temperatures.onboard) {
+                        Ok(data) => {
+                            client
+                                .send_message(
+                                    env!("ONBOARD_TEMPERATURE_SENSOR_TOPIC"),
+                                    &data,
+                                    QualityOfService::QoS1,
+                                    false,
+                                )
+                                .await
+                                .map_err(|e| {
+                                    warn!("Publish: MQTT error: {:?}", e);
+                                })?;
+                        }
+                        Err(e) => warn!("Failed to serialize message: {}", e),
                     }
                 }
             },

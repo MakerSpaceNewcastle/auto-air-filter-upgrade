@@ -44,8 +44,9 @@ ds18b20 = "0.1.1"
 
 git-version = "0.3.9"
 
-# MQTT telemetry TX
+# MQTT
 rust-mqtt = { git = "https://github.com/DanNixon/rust-mqtt", default-features = false, features = ["defmt"] }
+serde = { version = "1.0.215", features = ["derive"], default-features = false }
 serde-json-core = { version = "0.6.0", features = ["defmt"] }
 
 [build-dependencies]
