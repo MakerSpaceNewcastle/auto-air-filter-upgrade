@@ -9,7 +9,7 @@ pub(crate) type TemperatureReading = Result<f32, ()>;
 
 #[derive(Clone, Format)]
 pub(crate) struct Temperatures {
-    onboard: TemperatureReading,
+    pub(crate) onboard: TemperatureReading,
 }
 
 pub(crate) static TEMPERATURE_READING: PubSubChannel<

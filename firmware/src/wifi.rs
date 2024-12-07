@@ -1,4 +1,5 @@
 use crate::temperature_sensors::TEMPERATURE_READING;
+use core::fmt::Write;
 use cyw43::{PowerManagementMode, State};
 use cyw43_pio::PioSpi;
 use defmt::{debug, info, unwrap, warn};
@@ -12,6 +13,7 @@ use embassy_rp::{
     peripherals::{DMA_CH0, PIO0},
     pio::{InterruptHandler, Pio},
 };
+use embassy_sync::pubsub::WaitResult;
 use embassy_time::{Duration, Ticker, Timer};
 use rand::RngCore;
 use rust_mqtt::{
@@ -111,7 +113,7 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
 
     loop {
         // Start the MQTT client
-        run_mqtt_client(stack).await;
+        let _ = run_mqtt_client(stack).await;
 
         // Wait a little bit of time before connecting again
         Timer::after_millis(500).await;
@@ -205,22 +207,28 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
                     return Err(());
                 }
             },
-            Either::Second(temperatures) => {
-                let mut s = heapless::String::<16>::new();
-                s.write_fmt(format_args!("{} C", t)).unwrap();
-                // TODO
-                client
-                    .send_message(
-                        env!("ONBOARD_TEMPERATURE_SENSOR_TOPIC"),
-                        s,
-                        QualityOfService::QoS1,
-                        false,
-                    )
-                    .await
-                    .map_err(|e| {
-                        warn!("Publish: MQTT error: {:?}", e);
-                    })?;
-            }
+            Either::Second(temperatures) => match temperatures {
+                WaitResult::Lagged(msg_count) => {
+                    warn!("Temperature subscriber lagged, lost {} messages", msg_count);
+                }
+                WaitResult::Message(temperatures) => {
+                    if let Ok(t) = temperatures.onboard {
+                        let mut s = heapless::String::<16>::new();
+                        s.write_fmt(format_args!("{}", t)).unwrap();
+                        client
+                            .send_message(
+                                env!("ONBOARD_TEMPERATURE_SENSOR_TOPIC"),
+                                s.as_bytes(),
+                                QualityOfService::QoS1,
+                                false,
+                            )
+                            .await
+                            .map_err(|e| {
+                                warn!("Publish: MQTT error: {:?}", e);
+                            })?;
+                    }
+                }
+            },
         }
     }
 }
