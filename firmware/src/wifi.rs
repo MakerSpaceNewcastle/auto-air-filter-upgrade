@@ -4,7 +4,7 @@ use cyw43_pio::PioSpi;
 use defmt::{debug, info, unwrap, warn};
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
-use embassy_net::{tcp::TcpSocket, Config, IpAddress, Ipv4Address, StackResources};
+use embassy_net::{tcp::TcpSocket, Config, IpAddress, Ipv4Address, Stack, StackResources};
 use embassy_rp::{
     bind_interrupts,
     clocks::RoscRng,
@@ -31,9 +31,23 @@ const MQTT_BROKER_PORT: u16 = 1883;
 
 const MQTT_USERNAME: &str = "airfilter";
 
+const MQTT_BUFFER_SIZE: usize = 512;
+
 bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
 });
+
+#[embassy_executor::task]
+async fn cyw43_task(
+    runner: cyw43::Runner<'static, Output<'static>, PioSpi<'static, PIO0, 0, DMA_CH0>>,
+) -> ! {
+    runner.run().await
+}
+
+#[embassy_executor::task]
+async fn net_task(mut runner: embassy_net::Runner<'static, cyw43::NetDriver<'static>>) -> ! {
+    runner.run().await
+}
 
 #[embassy_executor::task]
 pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
@@ -78,15 +92,6 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
     );
     unwrap!(spawner.spawn(net_task(runner)));
 
-    let mut temperature_sub = TEMPERATURE_READING.subscriber().unwrap();
-
-    let mut rx_buffer = [0; 4096];
-    let mut tx_buffer = [0; 4096];
-
-    const MQTT_BUFFER_SIZE: usize = 512;
-    let mut mqtt_rx_buffer = [0; MQTT_BUFFER_SIZE];
-    let mut mqtt_tx_buffer = [0; MQTT_BUFFER_SIZE];
-
     info!("Joining WiFi network {}", WIFI_SSID);
     loop {
         match control.join_wpa2(WIFI_SSID, env!("WIFI_PASSWORD")).await {
@@ -105,114 +110,117 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
     info!("DHCP is now up");
 
     loop {
-        let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
-        socket.set_timeout(Some(Duration::from_secs(10)));
+        // Start the MQTT client
+        run_mqtt_client(stack).await;
 
-        info!(
-            "Connecting to MQTT broker {}:{}",
-            MQTT_BROKER_IP, MQTT_BROKER_PORT
-        );
-        let connection = socket.connect((MQTT_BROKER_IP, MQTT_BROKER_PORT)).await;
-        if let Err(e) = connection {
-            warn!("Broker socket connection error: {:?}", e);
-            continue;
-        }
-
-        let mut client = {
-            let mut config = ClientConfig::new(MqttVersion::MQTTv5, CountingRng(20000));
-            config.add_client_id(env!("MQTT_CLIENT_ID"));
-            config.add_username(MQTT_USERNAME);
-            config.add_password(env!("MQTT_PASSWORD"));
-            config.max_packet_size = MQTT_BUFFER_SIZE as u32;
-            config.add_will(env!("ONLINE_MQTT_TOPIC"), b"false", true);
-
-            MqttClient::<_, 5, _>::new(
-                socket,
-                &mut mqtt_tx_buffer,
-                MQTT_BUFFER_SIZE,
-                &mut mqtt_rx_buffer,
-                MQTT_BUFFER_SIZE,
-                config,
-            )
-        };
-
-        match client.connect_to_broker().await {
-            Ok(()) => {
-                info!("Connected to MQTT broker");
-            }
-            Err(e) => {
-                warn!("Connect: MQTT error: {:?}", e);
-                continue;
-            }
-        }
-
-        if let Err(e) = client
-            .send_message(
-                env!("ONLINE_MQTT_TOPIC"),
-                b"true",
-                QualityOfService::QoS1,
-                true,
-            )
-            .await
-        {
-            warn!("Publish: MQTT error: {:?}", e);
-            continue;
-        }
-
-        if let Err(e) = client
-            .send_message(
-                env!("VERSION_MQTT_TOPIC"),
-                git_version::git_version!().as_bytes(),
-                QualityOfService::QoS1,
-                true,
-            )
-            .await
-        {
-            warn!("Publish: MQTT error: {:?}", e);
-            continue;
-        }
-
-        let mut ping_tick = Ticker::every(Duration::from_secs(5));
-
-        loop {
-            match select(ping_tick.next(), temperature_sub.next_message()).await {
-                Either::First(_) => match client.send_ping().await {
-                    Ok(()) => {
-                        debug!("MQTT ping OK");
-                    }
-                    Err(e) => {
-                        warn!("Ping: MQTT error: {:?}", e);
-                        continue;
-                    }
-                },
-                Either::Second(temperatures) => {
-                    // TODO
-                    if let Err(e) = client
-                        .send_message(
-                            env!("ONBOARD_TEMPERATURE_SENSOR_TOPIC"),
-                            b"todo",
-                            QualityOfService::QoS1,
-                            false,
-                        )
-                        .await
-                    {
-                        warn!("Publish: MQTT error: {:?}", e);
-                        continue;
-                    }
-                }
-            }
-        }
+        // Wait a little bit of time before connecting again
+        Timer::after_millis(500).await;
     }
 }
 
-#[embassy_executor::task]
-async fn cyw43_task(
-    runner: cyw43::Runner<'static, Output<'static>, PioSpi<'static, PIO0, 0, DMA_CH0>>,
-) -> ! {
-    runner.run().await
-}
+async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
+    let mut rx_buffer = [0; 4096];
+    let mut tx_buffer = [0; 4096];
 
-#[embassy_executor::task]
-async fn net_task(mut runner: embassy_net::Runner<'static, cyw43::NetDriver<'static>>) -> ! {
-    runner.run().await
+    let mut mqtt_rx_buffer = [0; MQTT_BUFFER_SIZE];
+    let mut mqtt_tx_buffer = [0; MQTT_BUFFER_SIZE];
+
+    let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
+    socket.set_timeout(Some(Duration::from_secs(10)));
+
+    info!(
+        "Connecting to MQTT broker {}:{}",
+        MQTT_BROKER_IP, MQTT_BROKER_PORT
+    );
+    socket
+        .connect((MQTT_BROKER_IP, MQTT_BROKER_PORT))
+        .await
+        .map_err(|e| {
+            warn!("Broker socket connection error: {:?}", e);
+        })?;
+
+    let mut client = {
+        let mut config = ClientConfig::new(MqttVersion::MQTTv5, CountingRng(20000));
+        config.add_client_id(env!("MQTT_CLIENT_ID"));
+        config.add_username(MQTT_USERNAME);
+        config.add_password(env!("MQTT_PASSWORD"));
+        config.max_packet_size = MQTT_BUFFER_SIZE as u32;
+        config.add_will(env!("ONLINE_MQTT_TOPIC"), b"false", true);
+
+        MqttClient::<_, 5, _>::new(
+            socket,
+            &mut mqtt_tx_buffer,
+            MQTT_BUFFER_SIZE,
+            &mut mqtt_rx_buffer,
+            MQTT_BUFFER_SIZE,
+            config,
+        )
+    };
+
+    match client.connect_to_broker().await {
+        Ok(()) => {
+            info!("Connected to MQTT broker");
+        }
+        Err(e) => {
+            warn!("Connect: MQTT error: {:?}", e);
+            return Err(());
+        }
+    }
+
+    client
+        .send_message(
+            env!("ONLINE_MQTT_TOPIC"),
+            b"true",
+            QualityOfService::QoS1,
+            true,
+        )
+        .await
+        .map_err(|e| {
+            warn!("Publish: MQTT error: {:?}", e);
+        })?;
+
+    client
+        .send_message(
+            env!("VERSION_MQTT_TOPIC"),
+            git_version::git_version!().as_bytes(),
+            QualityOfService::QoS1,
+            true,
+        )
+        .await
+        .map_err(|e| {
+            warn!("Publish: MQTT error: {:?}", e);
+        })?;
+
+    let mut ping_tick = Ticker::every(Duration::from_secs(5));
+    let mut temperature_sub = TEMPERATURE_READING.subscriber().unwrap();
+
+    loop {
+        match select(ping_tick.next(), temperature_sub.next_message()).await {
+            Either::First(_) => match client.send_ping().await {
+                Ok(()) => {
+                    debug!("MQTT ping OK");
+                }
+                Err(e) => {
+                    warn!("Ping: MQTT error: {:?}", e);
+                    return Err(());
+                }
+            },
+            Either::Second(temperatures) => {
+                let mut s = heapless::String::<16>::new();
+                s.write_fmt(format_args!("{} C", t)).unwrap();
+                // TODO
+                client
+                    .send_message(
+                        env!("ONBOARD_TEMPERATURE_SENSOR_TOPIC"),
+                        s,
+                        QualityOfService::QoS1,
+                        false,
+                    )
+                    .await
+                    .map_err(|e| {
+                        warn!("Publish: MQTT error: {:?}", e);
+                    })?;
+            }
+        }
+    }
 }

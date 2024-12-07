@@ -36,6 +36,8 @@ embassy-sync = "0.6.0"
 portable-atomic = { version = "1.9.0", features = ["critical-section"] }
 static_cell = "2.1.0"
 
+heapless = { version = "0.8.0", features = ["defmt-03"] }
+
 # Temperature sensors
 one-wire-bus = "0.1.1"
 ds18b20 = "0.1.1"

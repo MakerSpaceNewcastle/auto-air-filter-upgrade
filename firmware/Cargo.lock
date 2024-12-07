@@ -63,6 +63,7 @@ dependencies = [
  "embedded-hal 0.2.7",
  "embedded-hal 1.0.0",
  "git-version",
+ "heapless",
  "one-wire-bus",
  "panic-probe",
  "portable-atomic",
