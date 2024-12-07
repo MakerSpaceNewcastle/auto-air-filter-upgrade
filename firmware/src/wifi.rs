@@ -78,7 +78,7 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
     control.init(clm).await;
 
     control
-        .set_power_management(PowerManagementMode::PowerSave)
+        .set_power_management(PowerManagementMode::None)
         .await;
 
     let mut rng = RoscRng;
@@ -168,12 +168,14 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
         }
     }
 
-    client.subscribe_to_topic("air-filter/test/fan/set").await.map_err(|e| {
-        warn!("Subscribe: MQTT error: {:?}", e)
-    })?;
-    client.subscribe_to_topic("air-filter/test/fuck").await.map_err(|e| {
-        warn!("Subscribe: MQTT error: {:?}", e)
-    })?;
+    client
+        .subscribe_to_topic("air-filter/test/fan/set")
+        .await
+        .map_err(|e| warn!("Subscribe: MQTT error: {:?}", e))?;
+    client
+        .subscribe_to_topic("air-filter/test/fuck")
+        .await
+        .map_err(|e| warn!("Subscribe: MQTT error: {:?}", e))?;
 
     client
         .send_message(
@@ -205,8 +207,8 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
     loop {
         match select3(
             ping_tick.next(),
-            client.receive_message_if_ready(),
             temperature_sub.next_message(),
+            client.receive_message_if_ready(),
         )
         .await
         {
@@ -219,16 +221,12 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
                     return Err(());
                 }
             },
-            Either3::Second(msg) => {
-                // TODO
-                info!("todo {}", msg);
-            }
-            Either3::Third(temperatures) => match temperatures {
+            Either3::Second(temperatures) => match temperatures {
                 WaitResult::Lagged(msg_count) => {
                     warn!("Temperature subscriber lagged, lost {} messages", msg_count);
                 }
                 WaitResult::Message(temperatures) => {
-                    match serde_json_core::to_vec::<_, 16>(&temperatures.onboard) {
+                    match serde_json_core::to_vec::<_, 16>(&temperatures.onboard.ok()) {
                         Ok(data) => {
                             client
                                 .send_message(
@@ -244,6 +242,12 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
                         }
                         Err(e) => warn!("Failed to serialize message: {}", e),
                     }
+                }
+            },
+            Either3::Third(msg) => match msg {
+                Ok(None) => Timer::after_millis(10).await,
+                doot => {
+                    info!("todo {}", doot);
                 }
             },
         }
