@@ -72,6 +72,7 @@ impl Config {
             "cargo::rustc-env=ONBOARD_TEMPERATURE_SENSOR_TOPIC={}temperatures/onboard",
             self.mqtt_topic_prefix
         );
+        println!("cargo::rustc-env=FAN_TOPIC={}fan", self.mqtt_topic_prefix);
         println!(
             "cargo::rustc-env=BOARD_TEMP_SENSOR_ADDRESS={}",
             self.board_temperature_sensor_address

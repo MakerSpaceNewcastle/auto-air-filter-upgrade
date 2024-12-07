@@ -1,9 +1,9 @@
-use crate::temperature_sensors::TEMPERATURE_READING;
+use crate::{fan::FAN_SPEED, temperature_sensors::TEMPERATURE_READING};
 use cyw43::{PowerManagementMode, State};
 use cyw43_pio::PioSpi;
 use defmt::{debug, info, unwrap, warn};
 use embassy_executor::Spawner;
-use embassy_futures::select::{select3, Either3};
+use embassy_futures::select::{select4, Either4};
 use embassy_net::{tcp::TcpSocket, Config, IpAddress, Ipv4Address, Stack, StackResources};
 use embassy_rp::{
     bind_interrupts,
@@ -203,16 +203,18 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
 
     let mut ping_tick = Ticker::every(Duration::from_secs(5));
     let mut temperature_sub = TEMPERATURE_READING.subscriber().unwrap();
+    let mut fan_sub = FAN_SPEED.subscriber().unwrap();
 
     loop {
-        match select3(
+        match select4(
             ping_tick.next(),
             temperature_sub.next_message(),
+            fan_sub.next_message(),
             client.receive_message_if_ready(),
         )
         .await
         {
-            Either3::First(_) => match client.send_ping().await {
+            Either4::First(_) => match client.send_ping().await {
                 Ok(()) => {
                     debug!("MQTT ping OK");
                 }
@@ -221,7 +223,7 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
                     return Err(());
                 }
             },
-            Either3::Second(temperatures) => match temperatures {
+            Either4::Second(temperatures) => match temperatures {
                 WaitResult::Lagged(msg_count) => {
                     warn!("Temperature subscriber lagged, lost {} messages", msg_count);
                 }
@@ -244,7 +246,23 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
                     }
                 }
             },
-            Either3::Third(msg) => match msg {
+            Either4::Third(fan) => match fan {
+                WaitResult::Lagged(msg_count) => {
+                    warn!("Fan subscriber lagged, lost {} messages", msg_count);
+                }
+                WaitResult::Message(fan) => match serde_json_core::to_vec::<_, 16>(&fan) {
+                    Ok(data) => {
+                        client
+                            .send_message(env!("FAN_TOPIC"), &data, QualityOfService::QoS1, false)
+                            .await
+                            .map_err(|e| {
+                                warn!("Publish: MQTT error: {:?}", e);
+                            })?;
+                    }
+                    Err(e) => warn!("Failed to serialize message: {}", e),
+                },
+            },
+            Either4::Fourth(msg) => match msg {
                 Ok(None) => Timer::after_millis(10).await,
                 doot => {
                     info!("todo {}", doot);

@@ -52,6 +52,8 @@ pub(crate) async fn task() {
         presence: Presence::Clear,
     };
 
+    let fan_tx = FAN_SPEED.publisher().unwrap();
+
     loop {
         let fan_off_time = match state.fan {
             FanRunning::Stopped => None,
@@ -107,6 +109,6 @@ pub(crate) async fn task() {
         };
 
         info!("State: {}", state);
-        FAN_SPEED.signal(state.get_fan_signal());
+        fan_tx.publish_immediate(state.get_fan_signal());
     }
 }
