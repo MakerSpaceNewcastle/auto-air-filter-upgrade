@@ -119,6 +119,39 @@ pub(super) async fn task(r: crate::WifiResources, spawner: Spawner) {
     }
 }
 
+trait ClientExt {
+    async fn publish<'a>(
+        &mut self,
+        topic: &'a str,
+        payload: &'a [u8],
+        retain: bool,
+    ) -> Result<(), ()>;
+}
+
+impl<T: embedded_io_async::Read + embedded_io_async::Write, R: RngCore> ClientExt
+    for MqttClient<'_, T, 5, R>
+{
+    async fn publish<'a>(
+        &mut self,
+        topic: &'a str,
+        payload: &'a [u8],
+        retain: bool,
+    ) -> Result<(), ()> {
+        let result = self
+            .send_message(topic, payload, QualityOfService::QoS1, retain)
+            .await;
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(ReasonCode::NoMatchingSubscribers) => Ok(()),
+            Err(e) => {
+                warn!("MQTT publish error: {:?}", e);
+                Err(())
+            }
+        }
+    }
+}
+
 async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
     let mut rx_buffer = [0; 4096];
     let mut tx_buffer = [0; 4096];
@@ -178,28 +211,16 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
         .map_err(|e| warn!("Subscribe: MQTT error: {:?}", e))?;
 
     client
-        .send_message(
-            env!("ONLINE_MQTT_TOPIC"),
-            b"true",
-            QualityOfService::QoS1,
-            true,
-        )
-        .await
-        .map_err(|e| {
-            warn!("Publish: MQTT error: {:?}", e);
-        })?;
+        .publish(env!("ONLINE_MQTT_TOPIC"), b"true", true)
+        .await?;
 
     client
-        .send_message(
+        .publish(
             env!("VERSION_MQTT_TOPIC"),
             git_version::git_version!().as_bytes(),
-            QualityOfService::QoS1,
             true,
         )
-        .await
-        .map_err(|e| {
-            warn!("Publish: MQTT error: {:?}", e);
-        })?;
+        .await?;
 
     let mut ping_tick = Ticker::every(Duration::from_secs(5));
     let mut temperature_sub = TEMPERATURE_READING.subscriber().unwrap();
@@ -231,16 +252,8 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
                     match serde_json_core::to_vec::<_, 16>(&temperatures.onboard.ok()) {
                         Ok(data) => {
                             client
-                                .send_message(
-                                    env!("ONBOARD_TEMPERATURE_SENSOR_TOPIC"),
-                                    &data,
-                                    QualityOfService::QoS1,
-                                    false,
-                                )
-                                .await
-                                .map_err(|e| {
-                                    warn!("Publish: MQTT error: {:?}", e);
-                                })?;
+                                .publish(env!("ONBOARD_TEMPERATURE_SENSOR_TOPIC"), &data, false)
+                                .await?;
                         }
                         Err(e) => warn!("Failed to serialize message: {}", e),
                     }
@@ -253,16 +266,8 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
                 WaitResult::Message(fan) => {
                     let fan: &str = fan.into();
                     client
-                        .send_message(
-                            env!("FAN_TOPIC"),
-                            fan.as_bytes(),
-                            QualityOfService::QoS1,
-                            false,
-                        )
-                        .await
-                        .map_err(|e| {
-                            warn!("Publish: MQTT error: {:?}", e);
-                        })?;
+                        .publish(env!("FAN_TOPIC"), fan.as_bytes(), false)
+                        .await?;
                 }
             },
             Either4::Fourth(msg) => match msg {
