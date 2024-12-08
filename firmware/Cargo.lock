@@ -62,6 +62,7 @@ dependencies = [
  "embassy-time-queue-driver",
  "embedded-hal 0.2.7",
  "embedded-hal 1.0.0",
+ "embedded-io-async",
  "git-version",
  "heapless",
  "one-wire-bus",

@@ -27,6 +27,7 @@ embassy-futures = "0.1.1"
 
 embedded-hal = { package = "embedded-hal", version = "1.0.0" }
 embedded-hal-p2 = { package = "embedded-hal", version = "0.2.0" }
+embedded-io-async = "0.6.1"
 
 defmt = "0.3.8"
 defmt-rtt = "0.4.1"

@@ -20,7 +20,7 @@ use rust_mqtt::{
         client::MqttClient,
         client_config::{ClientConfig, MqttVersion},
     },
-    packet::v5::publish_packet::QualityOfService,
+    packet::v5::{publish_packet::QualityOfService, reason_codes::ReasonCode},
     utils::rng_generator::CountingRng,
 };
 use static_cell::StaticCell;
