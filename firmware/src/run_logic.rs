@@ -10,6 +10,23 @@ use embassy_sync::pubsub::WaitResult;
 use embassy_time::{Duration, Instant};
 
 #[derive(Clone, Eq, PartialEq, Format)]
+struct Configuration {
+    timeout: Duration,
+}
+
+impl Default for Configuration {
+    fn default() -> Self {
+        Self {
+            timeout: Duration::from_secs(60 * 5), // 5 minutes
+        }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Format)]
+struct ObservedState {
+}
+
+#[derive(Clone, Eq, PartialEq, Format)]
 enum FanRunning {
     Stopped,
     Running { until: Option<Instant> },
@@ -24,13 +41,12 @@ impl FanRunning {
 }
 
 #[derive(Clone, Eq, PartialEq, Format)]
-struct State {
+struct OutputState {
     fan: FanRunning,
     fan_speed: FanSpeed,
-    presence: Presence,
 }
 
-impl State {
+impl OutputState {
     fn get_fan_command(&self) -> FanCommand {
         match self.fan {
             FanRunning::Stopped => FanCommand::Stop,
@@ -38,8 +54,6 @@ impl State {
         }
     }
 }
-
-const TIMEOUT: Duration = Duration::from_secs(60 * 5); // 5 minutes
 
 #[embassy_executor::task]
 pub(crate) async fn task() {
