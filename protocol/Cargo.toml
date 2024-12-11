@@ -1,0 +1,13 @@
+[package]
+name = "ms-air-filter-protocol"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+defmt = { version = "0.3.8", optional = true }
+serde = { version = "1.0.215", features = ["derive"], default-features = false }
+
+[features]
+default = ["std"]
+std = ["serde/std"]
+defmt = ["dep:defmt"]

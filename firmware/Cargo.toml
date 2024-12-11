@@ -1,5 +1,5 @@
 [package]
-name = "auto-air-filter-firmware"
+name = "ms-air-filter-firmware"
 version = "0.1.0"
 authors = ["Dan Nixon <dan@dan-nixon.com>"]
 edition = "2021"
@@ -45,7 +45,7 @@ ds18b20 = "0.1.1"
 
 # MQTT
 rust-mqtt = { git = "https://github.com/DanNixon/rust-mqtt", default-features = false, features = ["defmt"] }
-serde = { version = "1.0.215", features = ["derive"], default-features = false }
+ms-air-filter-protocol = { path = "../protocol/", default-features = false, features = ["defmt"] }
 serde-json-core = { version = "0.6.0", features = ["defmt"] }
 
 [build-dependencies]

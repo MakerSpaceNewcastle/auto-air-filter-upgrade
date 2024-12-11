@@ -16,9 +16,10 @@ use embassy_rp::{
     watchdog::Watchdog,
 };
 use embassy_time::{Duration, Timer};
+use ms_air_filter_protocol::{ExternalCommand, ExternalFanCommand};
 #[cfg(feature = "panic-probe")]
 use panic_probe as _;
-use run_logic::{ExternalCommand, ExternalFanCommand, EXTERNAL_COMMAND};
+use run_logic::EXTERNAL_COMMAND;
 use static_cell::StaticCell;
 
 #[cfg(not(feature = "panic-probe"))]

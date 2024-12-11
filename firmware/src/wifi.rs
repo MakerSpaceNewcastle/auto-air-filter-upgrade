@@ -1,7 +1,5 @@
 use crate::{
-    fan::FAN_SPEED,
-    run_logic::{ExternalCommand, EXTERNAL_COMMAND},
-    temperature_sensors::TEMPERATURE_READING,
+    fan::FAN_SPEED, run_logic::EXTERNAL_COMMAND, temperature_sensors::TEMPERATURE_READING,
 };
 use cyw43::{PowerManagementMode, State};
 use cyw43_pio::PioSpi;
@@ -18,6 +16,7 @@ use embassy_rp::{
 };
 use embassy_sync::pubsub::WaitResult;
 use embassy_time::{Duration, Ticker, Timer};
+use ms_air_filter_protocol::ExternalCommand;
 use rand::RngCore;
 use rust_mqtt::{
     client::{

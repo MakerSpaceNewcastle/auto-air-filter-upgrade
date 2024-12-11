@@ -1,0 +1,17 @@
+[package]
+name = "ms-air-filter-control"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.95"
+clap = { version = "4.5.23", features = ["derive"] }
+config = { version = "0.15.4", default-features = false, features = ["toml"] }
+env_logger = "0.11.6"
+log = "0.4.22"
+ms-air-filter-protocol = { path = "../protocol/" }
+rand = "0.8.5"
+rumqttc = "0.24.0"
+serde = { version = "1.0.216", features = ["derive"] }
+serde_json = "1.0.134"
+tokio = { version = "1.42.0", features = ["macros", "rt-multi-thread", "signal"] }
