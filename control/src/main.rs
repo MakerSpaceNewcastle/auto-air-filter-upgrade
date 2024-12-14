@@ -1,5 +1,5 @@
-use std::time::Duration;
 use rumqttc::{AsyncClient, MqttOptions, QoS};
+use std::time::Duration;
 
 #[tokio::main]
 async fn main() {
@@ -11,7 +11,7 @@ async fn main() {
     client.subscribe("#", QoS::ExactlyOnce).await.unwrap();
 
     loop {
-    let fuck = connection.poll().await;
+        let fuck = connection.poll().await;
         println!("{:#?}", fuck);
     }
 }

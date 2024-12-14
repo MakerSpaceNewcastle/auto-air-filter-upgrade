@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 rumqttc = "0.24.0"
+serde = { version = "1.0.216", features = ["derive"] }
 tokio = { version = "1.42.0", features = ["macros", "rt-multi-thread"] }
