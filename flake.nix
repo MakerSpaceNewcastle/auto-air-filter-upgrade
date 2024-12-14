@@ -23,6 +23,7 @@
             # Rust toolchain
             rustup
             probe-rs
+            cargo-cross
           ];
         };
       }
