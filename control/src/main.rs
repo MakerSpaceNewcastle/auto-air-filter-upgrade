@@ -35,8 +35,8 @@ struct MqttConfig {
 struct AirZoneConfig {
     name: String,
     filter: AirFilterConfig,
-    presence: Vec<PresenceSensor>,
-    air_quality: Vec<AirQualitySensor>,
+    presence: Vec<PresenceSensorConfig>,
+    air_quality: Vec<AirQualitySensorConfig>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,15 +46,29 @@ struct AirFilterConfig {
 }
 
 #[derive(Debug, Deserialize)]
-struct PresenceSensor {
+struct PresenceSensorConfig {
     name: String,
     state_topic: String,
 }
 
 #[derive(Debug, Deserialize)]
-struct AirQualitySensor {
+struct AirQualitySensorConfig {
     name: String,
-    pm1_value_topic: String,
-    pm2_5_value_topic: String,
-    pm10_value_topic: String,
+    pm1: AirQualityMetricConfig,
+    pm2_5: AirQualityMetricConfig,
+    pm10: AirQualityMetricConfig,
+}
+
+#[derive(Debug, Deserialize)]
+struct AirQualityMetricConfig {
+    value_topic: String,
+    dirty_threshold: f64,
+    very_dirty_threshold: f64,
+}
+
+#[derive(Debug, Deserialize)]
+enum AirCleanliness {
+    Clean,
+    Dirty,
+    VeryDirty,
 }
