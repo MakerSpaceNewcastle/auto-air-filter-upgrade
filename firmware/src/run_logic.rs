@@ -1,7 +1,6 @@
 use crate::{
     fan::{FanCommand, FanSpeed, FAN_SPEED},
     maybe_timer::MaybeTimer,
-    presence_sensors::{Presence, PRESENCE_EVENTS},
     ui_buttons::{UiEvent, UI_EVENTS},
 };
 use defmt::{info, warn, Format};
@@ -27,7 +26,6 @@ impl FanRunning {
 struct State {
     fan: FanRunning,
     fan_speed: FanSpeed,
-    presence: Presence,
 }
 
 impl State {
@@ -43,13 +41,11 @@ const TIMEOUT: Duration = Duration::from_secs(60 * 5); // 5 minutes
 
 #[embassy_executor::task]
 pub(crate) async fn task() {
-    let mut presence_rx = PRESENCE_EVENTS.subscriber().unwrap();
     let mut ui_rx = UI_EVENTS.subscriber().unwrap();
 
     let mut state = State {
         fan: FanRunning::Stopped,
         fan_speed: FanSpeed::Low,
-        presence: Presence::Clear,
     };
 
     let fan_tx = FAN_SPEED.publisher().unwrap();
@@ -61,26 +57,14 @@ pub(crate) async fn task() {
         };
 
         match select3(
-            presence_rx.next_message(),
+            MaybeTimer::at(None),
             ui_rx.next_message(),
             MaybeTimer::at(fan_off_time),
         )
         .await
         {
-            Either3::First(msg) => match msg {
-                WaitResult::Lagged(msg_count) => {
-                    warn!(
-                        "Lagged listening to presence events, missed {} messages",
-                        msg_count
-                    )
-                }
-                WaitResult::Message(msg) => {
-                    state.presence = msg.state;
-
-                    if state.presence == Presence::Occupied {
-                        state.fan = FanRunning::run_for(TIMEOUT);
-                    }
-                }
+            Either3::First(_) => {
+                // TODO
             },
             Either3::Second(msg) => match msg {
                 WaitResult::Lagged(msg_count) => {

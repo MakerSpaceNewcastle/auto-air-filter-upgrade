@@ -3,7 +3,6 @@
 
 mod fan;
 mod maybe_timer;
-mod presence_sensors;
 mod run_logic;
 mod temperature_sensors;
 mod ui_buttons;
@@ -53,10 +52,6 @@ assign_resources::assign_resources! {
         high: PIN_7,
         contactor_voltage: PIN_17,
     },
-    presence_sensors: PresenceSensorResources {
-        pir_a: PIN_11, // Input 4
-        pir_b: PIN_10, // Input 5
-    },
     ui_buttons: UiButtonResources {
         speed: PIN_9, // Input 6
     },
@@ -93,7 +88,6 @@ async fn main(_spawner: Spawner) {
 
                 unwrap!(spawner.spawn(crate::fan::task(r.fan_relays)));
 
-                unwrap!(spawner.spawn(crate::presence_sensors::task(r.presence_sensors)));
                 unwrap!(spawner.spawn(crate::ui_buttons::task(r.ui_buttons)));
 
                 unwrap!(spawner.spawn(crate::run_logic::task()));
