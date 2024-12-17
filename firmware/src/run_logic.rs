@@ -1,11 +1,9 @@
 use crate::{
     fan::{FanCommand, FanSpeed, FAN_SPEED},
     maybe_timer::MaybeTimer,
-    ui_buttons::{UiEvent, UI_EVENTS},
 };
-use defmt::{info, warn, Format};
+use defmt::{info, Format};
 use embassy_futures::select::{select3, Either3};
-use embassy_sync::pubsub::WaitResult;
 use embassy_time::{Duration, Instant};
 
 #[derive(Clone, Eq, PartialEq, Format)]
@@ -41,8 +39,6 @@ const TIMEOUT: Duration = Duration::from_secs(60 * 5); // 5 minutes
 
 #[embassy_executor::task]
 pub(crate) async fn task() {
-    let mut ui_rx = UI_EVENTS.subscriber().unwrap();
-
     let mut state = State {
         fan: FanRunning::Stopped,
         fan_speed: FanSpeed::Low,
@@ -58,34 +54,17 @@ pub(crate) async fn task() {
 
         match select3(
             MaybeTimer::at(None),
-            ui_rx.next_message(),
+            MaybeTimer::at(None),
             MaybeTimer::at(fan_off_time),
         )
         .await
         {
             Either3::First(_) => {
                 // TODO
-            },
-            Either3::Second(msg) => match msg {
-                WaitResult::Lagged(msg_count) => {
-                    warn!(
-                        "Lagged listening to UI events, missed {} messages",
-                        msg_count
-                    )
-                }
-                WaitResult::Message(UiEvent::SpeedButtonPushed) => {
-                    state.fan_speed = match state.fan {
-                        FanRunning::Running { .. } => {
-                            let mut speed = state.fan_speed.clone();
-                            speed.cycle();
-                            speed
-                        }
-                        FanRunning::Stopped => FanSpeed::Low,
-                    };
-
-                    state.fan = FanRunning::run_for(TIMEOUT);
-                }
-            },
+            }
+            Either3::Second(_) => {
+                // TODO
+            }
             Either3::Third(_) => {
                 info!("Turning off fan after timeout");
                 state.fan = FanRunning::Stopped;

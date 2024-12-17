@@ -5,7 +5,6 @@ mod fan;
 mod maybe_timer;
 mod run_logic;
 mod temperature_sensors;
-mod ui_buttons;
 mod wifi;
 
 use defmt::{info, unwrap};
@@ -52,9 +51,6 @@ assign_resources::assign_resources! {
         high: PIN_7,
         contactor_voltage: PIN_17,
     },
-    ui_buttons: UiButtonResources {
-        speed: PIN_9, // Input 6
-    },
     onewire: OnewireResources {
         data: PIN_22,
     },
@@ -87,8 +83,6 @@ async fn main(_spawner: Spawner) {
                 unwrap!(spawner.spawn(watchdog_feed(r.status)));
 
                 unwrap!(spawner.spawn(crate::fan::task(r.fan_relays)));
-
-                unwrap!(spawner.spawn(crate::ui_buttons::task(r.ui_buttons)));
 
                 unwrap!(spawner.spawn(crate::run_logic::task()));
             });
