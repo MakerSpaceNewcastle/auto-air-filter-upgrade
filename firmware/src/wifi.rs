@@ -202,11 +202,7 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
     }
 
     client
-        .subscribe_to_topic("air-filter/test/fan/set")
-        .await
-        .map_err(|e| warn!("Subscribe: MQTT error: {:?}", e))?;
-    client
-        .subscribe_to_topic("air-filter/test/fuck")
+        .subscribe_to_topic(env!("FAN_COMMAND_TOPIC"))
         .await
         .map_err(|e| warn!("Subscribe: MQTT error: {:?}", e))?;
 
@@ -268,8 +264,9 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
             },
             Either4::Fourth(msg) => match msg {
                 Ok(None) => Timer::after_millis(10).await,
-                doot => {
-                    info!("todo {}", doot);
+                msg => {
+                    // TODO
+                    info!("todo {}", msg);
                 }
             },
         }

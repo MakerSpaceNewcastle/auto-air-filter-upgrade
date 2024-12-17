@@ -7,17 +7,15 @@ use embassy_futures::select::{select3, Either3};
 use embassy_time::{Duration, Instant};
 
 #[derive(Clone, Eq, PartialEq, Format)]
-enum FanRunning {
-    Stopped,
-    Running { until: Option<Instant> },
+struct Command {
+    fan: Option<FanCommand>,
+    speed: Option<FanSpeed>,
 }
 
-impl FanRunning {
-    fn run_for(d: Duration) -> Self {
-        Self::Running {
-            until: Some(Instant::now() + d),
-        }
-    }
+#[derive(Clone, Eq, PartialEq, Format)]
+enum FanCommand {
+    Stop,
+    RunFor { seconds: u32 },
 }
 
 #[derive(Clone, Eq, PartialEq, Format)]
@@ -35,7 +33,11 @@ impl State {
     }
 }
 
-const TIMEOUT: Duration = Duration::from_secs(60 * 5); // 5 minutes
+#[derive(Clone, Eq, PartialEq, Format)]
+enum FanRunning {
+    Stopped,
+    Running { until: Option<Instant> },
+}
 
 #[embassy_executor::task]
 pub(crate) async fn task() {

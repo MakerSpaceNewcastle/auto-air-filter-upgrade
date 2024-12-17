@@ -71,6 +71,7 @@ impl Config {
 
     fn set_env_vars(&self) {
         println!("cargo::rustc-env=MQTT_CLIENT_ID={}", self.mqtt_client_id);
+
         println!(
             "cargo::rustc-env=ONLINE_MQTT_TOPIC={}online",
             self.mqtt_topic_prefix
@@ -84,6 +85,11 @@ impl Config {
             self.mqtt_topic_prefix
         );
         println!("cargo::rustc-env=FAN_TOPIC={}fan", self.mqtt_topic_prefix);
+        println!(
+            "cargo::rustc-env=FAN_COMMAND_TOPIC={}fan/cmd",
+            self.mqtt_topic_prefix
+        );
+
         println!(
             "cargo::rustc-env=BOARD_TEMP_SENSOR_ADDRESS={}",
             self.board_temperature_sensor_address
