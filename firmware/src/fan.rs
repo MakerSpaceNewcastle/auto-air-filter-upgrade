@@ -26,20 +26,6 @@ impl From<FanCommand> for &'static str {
     }
 }
 
-impl TryFrom<&str> for FanCommand {
-    type Error = ();
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "stop" => Ok(Self::Stop),
-            "low" => Ok(Self::Run(FanSpeed::Low)),
-            "medium" => Ok(Self::Run(FanSpeed::Medium)),
-            "high" => Ok(Self::Run(FanSpeed::High)),
-            _ => Err(()),
-        }
-    }
-}
-
 #[derive(Clone, Format, Eq, PartialEq)]
 pub(crate) enum FanSpeed {
     Low,

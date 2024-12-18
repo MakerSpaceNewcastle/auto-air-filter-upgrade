@@ -3,17 +3,17 @@ use crate::{
     maybe_timer::MaybeTimer,
 };
 use defmt::{info, Format};
-use embassy_futures::select::{select3, Either3};
-use embassy_time::{Duration, Instant};
+use embassy_futures::select::{select, Either};
+use embassy_time::Instant;
 
 #[derive(Clone, Eq, PartialEq, Format)]
-struct Command {
-    fan: Option<FanCommand>,
+struct ExternalCommand {
+    fan: Option<ExternalFanCommand>,
     speed: Option<FanSpeed>,
 }
 
 #[derive(Clone, Eq, PartialEq, Format)]
-enum FanCommand {
+enum ExternalFanCommand {
     Stop,
     RunFor { seconds: u32 },
 }
@@ -54,20 +54,11 @@ pub(crate) async fn task() {
             FanRunning::Running { until } => until,
         };
 
-        match select3(
-            MaybeTimer::at(None),
-            MaybeTimer::at(None),
-            MaybeTimer::at(fan_off_time),
-        )
-        .await
-        {
-            Either3::First(_) => {
+        match select(MaybeTimer::at(None), MaybeTimer::at(fan_off_time)).await {
+            Either::First(_) => {
                 // TODO
             }
-            Either3::Second(_) => {
-                // TODO
-            }
-            Either3::Third(_) => {
+            Either::Second(_) => {
                 info!("Turning off fan after timeout");
                 state.fan = FanRunning::Stopped;
             }
