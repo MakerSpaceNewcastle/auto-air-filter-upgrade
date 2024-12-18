@@ -44,16 +44,6 @@ impl State {
             FanRunning::Running { .. } => FanCommand::Run(self.speed.clone()),
         }
     }
-
-    fn update(&mut self, cmd: ExternalCommand) {
-        if let Some(fan) = cmd.fan {
-            self.fan = fan.into();
-        }
-
-        if let Some(speed) = cmd.speed {
-            self.speed = speed;
-        }
-    }
 }
 
 #[derive(Clone, Eq, PartialEq, Format)]
@@ -95,16 +85,22 @@ pub(crate) async fn task() {
                 warn!("Command subscriber lagged, lost {} messages", lost);
                 None
             }
-            Either::First(WaitResult::Message(cmd)) => {
-                let mut s = state.clone();
-                s.update(cmd);
-                Some(s)
-            }
+            Either::First(WaitResult::Message(cmd)) => Some(State {
+                fan: match cmd.fan {
+                    Some(fan) => fan.into(),
+                    None => state.fan.clone(),
+                },
+                speed: match cmd.speed {
+                    Some(speed) => speed,
+                    None => state.speed.clone(),
+                },
+            }),
             Either::Second(_) => {
                 info!("Turning off fan after timeout");
-                let mut s = state.clone();
-                s.fan = FanRunning::Stopped;
-                Some(s)
+                Some(State {
+                    fan: FanRunning::Stopped,
+                    speed: state.speed.clone(),
+                })
             }
         };
 

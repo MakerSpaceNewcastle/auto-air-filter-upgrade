@@ -1,4 +1,6 @@
-use crate::{fan::FAN_SPEED, temperature_sensors::TEMPERATURE_READING};
+use crate::{
+    fan::FAN_SPEED, run_logic::EXTERNAL_COMMAND, temperature_sensors::TEMPERATURE_READING,
+};
 use cyw43::{PowerManagementMode, State};
 use cyw43_pio::PioSpi;
 use defmt::{debug, info, unwrap, warn};
@@ -217,6 +219,7 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
     let mut ping_tick = Ticker::every(Duration::from_secs(5));
     let mut temperature_sub = TEMPERATURE_READING.subscriber().unwrap();
     let mut fan_sub = FAN_SPEED.subscriber().unwrap();
+    let cmd_pub = EXTERNAL_COMMAND.publisher().unwrap();
 
     loop {
         match select4(
@@ -237,8 +240,8 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
                 }
             },
             Either4::Second(temperatures) => match temperatures {
-                WaitResult::Lagged(msg_count) => {
-                    warn!("Temperature subscriber lagged, lost {} messages", msg_count);
+                WaitResult::Lagged(lost) => {
+                    warn!("Temperature subscriber lagged, lost {} messages", lost);
                 }
                 WaitResult::Message(temperatures) => {
                     match serde_json_core::to_vec::<_, 16>(&temperatures.onboard.ok()) {
@@ -252,8 +255,8 @@ async fn run_mqtt_client(stack: Stack<'_>) -> Result<(), ()> {
                 }
             },
             Either4::Third(fan) => match fan {
-                WaitResult::Lagged(msg_count) => {
-                    warn!("Fan subscriber lagged, lost {} messages", msg_count);
+                WaitResult::Lagged(lost) => {
+                    warn!("Fan subscriber lagged, lost {} messages", lost);
                 }
                 WaitResult::Message(fan) => {
                     let fan: &str = fan.into();
