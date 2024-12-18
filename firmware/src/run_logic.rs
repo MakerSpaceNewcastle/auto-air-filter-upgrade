@@ -9,14 +9,15 @@ use embassy_sync::{
     pubsub::{PubSubChannel, WaitResult},
 };
 use embassy_time::{Duration, Instant};
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Eq, PartialEq, Format)]
+#[derive(Clone, Eq, PartialEq, Format, Serialize, Deserialize)]
 pub(crate) struct ExternalCommand {
     fan: Option<ExternalFanCommand>,
     speed: Option<FanSpeed>,
 }
 
-#[derive(Clone, Eq, PartialEq, Format)]
+#[derive(Clone, Eq, PartialEq, Format, Serialize, Deserialize)]
 pub(crate) enum ExternalFanCommand {
     Stop,
     RunFor { seconds: u64 },
@@ -33,14 +34,24 @@ pub(crate) static EXTERNAL_COMMAND: PubSubChannel<
 #[derive(Clone, Eq, PartialEq, Format)]
 struct State {
     fan: FanRunning,
-    fan_speed: FanSpeed,
+    speed: FanSpeed,
 }
 
 impl State {
     fn get_fan_command(&self) -> FanCommand {
         match self.fan {
             FanRunning::Stopped => FanCommand::Stop,
-            FanRunning::Running { .. } => FanCommand::Run(self.fan_speed.clone()),
+            FanRunning::Running { .. } => FanCommand::Run(self.speed.clone()),
+        }
+    }
+
+    fn update(&mut self, cmd: ExternalCommand) {
+        if let Some(fan) = cmd.fan {
+            self.fan = fan.into();
+        }
+
+        if let Some(speed) = cmd.speed {
+            self.speed = speed;
         }
     }
 }
@@ -66,7 +77,7 @@ impl From<ExternalFanCommand> for FanRunning {
 pub(crate) async fn task() {
     let mut state = State {
         fan: FanRunning::Stopped,
-        fan_speed: FanSpeed::Low,
+        speed: FanSpeed::Low,
     };
 
     let mut command_sub = EXTERNAL_COMMAND.subscriber().unwrap();
@@ -83,7 +94,7 @@ pub(crate) async fn task() {
                 warn!("Command subscriber lagged, lost {} messages", lost);
             }
             Either::First(WaitResult::Message(cmd)) => {
-                // TODO
+                state.update(cmd);
             }
             Either::Second(_) => {
                 info!("Turning off fan after timeout");
