@@ -89,20 +89,31 @@ pub(crate) async fn task() {
             FanRunning::Running { until } => Some(until),
         };
 
-        match select(command_sub.next_message(), MaybeTimer::at(fan_off_time)).await {
+        let new_state = match select(command_sub.next_message(), MaybeTimer::at(fan_off_time)).await
+        {
             Either::First(WaitResult::Lagged(lost)) => {
                 warn!("Command subscriber lagged, lost {} messages", lost);
+                None
             }
             Either::First(WaitResult::Message(cmd)) => {
-                state.update(cmd);
+                let mut s = state.clone();
+                s.update(cmd);
+                Some(s)
             }
             Either::Second(_) => {
                 info!("Turning off fan after timeout");
-                state.fan = FanRunning::Stopped;
+                let mut s = state.clone();
+                s.fan = FanRunning::Stopped;
+                Some(s)
             }
         };
 
-        info!("State: {}", state);
-        fan_pub.publish_immediate(state.get_fan_command());
+        if let Some(new_state) = new_state {
+            if new_state != state {
+                state = new_state;
+                info!("State: {}", state);
+                fan_pub.publish_immediate(state.get_fan_command());
+            }
+        }
     }
 }
