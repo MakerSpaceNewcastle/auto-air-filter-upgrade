@@ -2,21 +2,33 @@ use crate::{
     fan::{FanCommand, FanSpeed, FAN_SPEED},
     maybe_timer::MaybeTimer,
 };
-use defmt::{info, Format};
+use defmt::{info, warn, Format};
 use embassy_futures::select::{select, Either};
-use embassy_time::Instant;
+use embassy_sync::{
+    blocking_mutex::raw::CriticalSectionRawMutex,
+    pubsub::{PubSubChannel, WaitResult},
+};
+use embassy_time::{Duration, Instant};
 
 #[derive(Clone, Eq, PartialEq, Format)]
-struct ExternalCommand {
+pub(crate) struct ExternalCommand {
     fan: Option<ExternalFanCommand>,
     speed: Option<FanSpeed>,
 }
 
 #[derive(Clone, Eq, PartialEq, Format)]
-enum ExternalFanCommand {
+pub(crate) enum ExternalFanCommand {
     Stop,
-    RunFor { seconds: u32 },
+    RunFor { seconds: u64 },
 }
+
+pub(crate) static EXTERNAL_COMMAND: PubSubChannel<
+    CriticalSectionRawMutex,
+    ExternalCommand,
+    1,
+    1,
+    1,
+> = PubSubChannel::new();
 
 #[derive(Clone, Eq, PartialEq, Format)]
 struct State {
@@ -36,7 +48,18 @@ impl State {
 #[derive(Clone, Eq, PartialEq, Format)]
 enum FanRunning {
     Stopped,
-    Running { until: Option<Instant> },
+    Running { until: Instant },
+}
+
+impl From<ExternalFanCommand> for FanRunning {
+    fn from(value: ExternalFanCommand) -> Self {
+        match value {
+            ExternalFanCommand::Stop => Self::Stopped,
+            ExternalFanCommand::RunFor { seconds } => Self::Running {
+                until: Instant::now() + Duration::from_secs(seconds),
+            },
+        }
+    }
 }
 
 #[embassy_executor::task]
@@ -46,16 +69,20 @@ pub(crate) async fn task() {
         fan_speed: FanSpeed::Low,
     };
 
-    let fan_tx = FAN_SPEED.publisher().unwrap();
+    let mut command_sub = EXTERNAL_COMMAND.subscriber().unwrap();
+    let fan_pub = FAN_SPEED.publisher().unwrap();
 
     loop {
         let fan_off_time = match state.fan {
             FanRunning::Stopped => None,
-            FanRunning::Running { until } => until,
+            FanRunning::Running { until } => Some(until),
         };
 
-        match select(MaybeTimer::at(None), MaybeTimer::at(fan_off_time)).await {
-            Either::First(_) => {
+        match select(command_sub.next_message(), MaybeTimer::at(fan_off_time)).await {
+            Either::First(WaitResult::Lagged(lost)) => {
+                warn!("Command subscriber lagged, lost {} messages", lost);
+            }
+            Either::First(WaitResult::Message(cmd)) => {
                 // TODO
             }
             Either::Second(_) => {
@@ -65,6 +92,6 @@ pub(crate) async fn task() {
         };
 
         info!("State: {}", state);
-        fan_tx.publish_immediate(state.get_fan_command());
+        fan_pub.publish_immediate(state.get_fan_command());
     }
 }
