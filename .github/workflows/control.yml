@@ -1,5 +1,5 @@
 ---
-name: Firmware
+name: Control Program
 
 on:
   push:
@@ -7,11 +7,11 @@ on:
       - main
     paths:
       - 'flake.*'
-      - 'firmware/**'
+      - 'control/**'
   pull_request:
     paths:
       - 'flake.*'
-      - 'firmware/**'
+      - 'control/**'
 
 jobs:
   quality:
@@ -20,23 +20,16 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./firmware
+        working-directory: ./control
 
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v30
 
       - name: Clippy
-        env:
-          WIFI_PASSWORD: super secret
-          MQTT_PASSWORD: lol nope
-          CONFIG: ./configs/test.toml
         run: |
           eval "$(nix print-dev-env)"
           set -x
-
-          rustup target add thumbv6m-none-eabi
-          rustup show
 
           cargo clippy -- -Dwarnings
 
@@ -48,29 +41,15 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./firmware
-
-    strategy:
-      matrix:
-        config:
-          - north-basement-workshop.toml
-          - south-basement-workshop.toml
-          - test.toml
+        working-directory: ./control
 
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v30
 
       - name: Build
-        env:
-          WIFI_PASSWORD: super secret
-          MQTT_PASSWORD: lol nope
-          CONFIG: "./configs/${{ matrix.config }}"
         run: |
           eval "$(nix print-dev-env)"
           set -x
-
-          rustup target add thumbv6m-none-eabi
-          rustup show
 
           cargo build --release

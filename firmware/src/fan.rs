@@ -5,7 +5,7 @@ use embassy_sync::{
     pubsub::{PubSubChannel, WaitResult},
 };
 use embassy_time::Timer;
-use serde::{Deserialize, Serialize};
+use ms_air_filter_protocol::FanSpeed;
 
 pub(crate) static FAN_SPEED: PubSubChannel<CriticalSectionRawMutex, FanCommand, 1, 2, 1> =
     PubSubChannel::new();
@@ -25,14 +25,6 @@ impl From<FanCommand> for &'static str {
             FanCommand::Run(FanSpeed::High) => "high",
         }
     }
-}
-
-#[derive(Clone, Eq, PartialEq, Format, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum FanSpeed {
-    Low,
-    Medium,
-    High,
 }
 
 #[embassy_executor::task]

@@ -1,5 +1,5 @@
 use crate::{
-    fan::{FanCommand, FanSpeed, FAN_SPEED},
+    fan::{FanCommand, FAN_SPEED},
     maybe_timer::MaybeTimer,
 };
 use defmt::{info, warn, Format};
@@ -9,20 +9,7 @@ use embassy_sync::{
     pubsub::{PubSubChannel, WaitResult},
 };
 use embassy_time::{Duration, Instant};
-use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Eq, PartialEq, Format, Serialize, Deserialize)]
-pub(crate) struct ExternalCommand {
-    pub(crate) fan: Option<ExternalFanCommand>,
-    pub(crate) speed: Option<FanSpeed>,
-}
-
-#[derive(Clone, Eq, PartialEq, Format, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum ExternalFanCommand {
-    Stop,
-    RunFor { seconds: u64 },
-}
+use ms_air_filter_protocol::{ExternalCommand, ExternalFanCommand, FanSpeed};
 
 pub(crate) static EXTERNAL_COMMAND: PubSubChannel<
     CriticalSectionRawMutex,

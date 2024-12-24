@@ -1,0 +1,12 @@
+[mqtt]
+host = "100.92.108.55"
+port = 1883
+username = "dan"
+password = "super secret looool"
+
+[[zones]]
+name = "arse"
+
+[zones.filter]
+name = "arse"
+command_topic = "arse/fan/cmd"
