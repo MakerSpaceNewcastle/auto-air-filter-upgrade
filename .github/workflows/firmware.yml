@@ -73,4 +73,4 @@ jobs:
           rustup target add thumbv6m-none-eabi
           rustup show
 
-          cargo build --release --no-default-features
+          cargo build --release
